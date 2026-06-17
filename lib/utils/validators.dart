@@ -12,13 +12,13 @@ class Validators {
     return null;
   }
 
-  /// Valide un mot de passe (min 6 caractères)
+  /// Valide un mot de passe (min 8 caractères)
   static String? password(String? value) {
     if (value == null || value.isEmpty) {
       return 'Veuillez saisir un mot de passe';
     }
-    if (value.length < 6) {
-      return 'Le mot de passe doit contenir au moins 6 caractères';
+    if (value.length < 8) {
+      return 'Le mot de passe doit contenir au moins 8 caractères';
     }
     return null;
   }
@@ -43,13 +43,9 @@ class Validators {
   }
 
   /// Valide un matricule HEC
+  /// Format accepté : lettres, chiffres, tirets, entre 5 et 20 caractères.
   static String? matricule(String? value) {
     if (value == null || value.isEmpty) {
       return 'Le matricule est requis';
     }
-    if (value.length < 5) {
-      return 'Matricule trop court';
-    }
-    return null;
-  }
-}
+    final trimmed =
