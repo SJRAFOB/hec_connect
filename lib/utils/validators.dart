@@ -12,7 +12,16 @@ class Validators {
     return null;
   }
 
-  /// Valide un mot de passe (min 8 caractères)
+  /// Valide un mot de passe à la CONNEXION (non vide uniquement).
+  /// Firebase Auth gère lui-même l'échec si le mot de passe est incorrect.
+  static String? loginPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Veuillez saisir votre mot de passe';
+    }
+    return null;
+  }
+
+  /// Valide un mot de passe à l'INSCRIPTION (min 8 caractères).
   static String? password(String? value) {
     if (value == null || value.isEmpty) {
       return 'Veuillez saisir un mot de passe';
@@ -48,4 +57,5 @@ class Validators {
     if (value == null || value.isEmpty) {
       return 'Le matricule est requis';
     }
-    final trimmed =
+    final trimmed = value.trim();
+    i

@@ -30,6 +30,13 @@ class _TeacherRegisterScreenState extends State<TeacherRegisterScreen> {
   bool _obscureCode = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Réveille le serveur Render dès l'ouverture de l'écran (plan gratuit)
+    CodeValidationService.warmup();
+  }
+
+  @override
   void dispose() {
     _nomController.dispose();
     _prenomController.dispose();
@@ -239,10 +246,15 @@ class _TeacherRegisterScreenState extends State<TeacherRegisterScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+      final raw = e.toString();
+      final msg = raw.contains('Trop de tentatives')
+          ? 'Trop de tentatives. Attendez 15 minutes et réessayez.'
+          : 'Erreur: ${raw.length > 120 ? raw.substring(0, 120) : raw}';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Impossible de vérifier le code. Vérifiez votre connexion.'),
+        SnackBar(
+          content: Text(msg),
           backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 6),
         ),
       );
       return;
@@ -509,4 +521,11 @@ class _TeacherRegisterScreenState extends State<TeacherRegisterScreen> {
                 ),
                 const SizedBox(height: 16),
 
-         
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Déjà un compte ? ',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const LoginScreen

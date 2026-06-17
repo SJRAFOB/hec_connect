@@ -4,7 +4,7 @@ import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import 'home_screen.dart';
-import 'register_screen.dart';
+import 'portail_choice_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -156,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  validator: Validators.password,
+                  validator: Validators.loginPassword,
                 ),
                 // Mot de passe oublié
                 Align(
@@ -194,9 +194,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
                     GestureDetector(
-                      onTap: () => Navigator.of(context).pushReplacement(
+                      onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const RegisterScreen(),
+                          builder: (_) => const PortailChoiceScreen(),
                         ),
                       ),
                       child: const Text(
@@ -216,5 +216,4 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
-  }
-}
+ 

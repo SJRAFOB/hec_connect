@@ -40,17 +40,29 @@ service cloud.firestore {
     // ════════════════════════════════════════════════════════════
     match /users/{userId} {
 
-      // Tout utilisateur connecté peut lire les profils
+      // Tout utilisateur connecté peut lire les profils (nécessaire pour le chat,
+      // les emplois du temps, etc.). Le fcmToken a été migré vers /users/{uid}/private/tokens.
       allow read: if isSignedIn();
 
-      // Inscription : l'utilisateur crée son propre document
-      allow create: if isSignedIn() && uid() == userId;
+      // Inscription : l'utilisateur crée uniquement son propre document,
+      // et ne peut se déclarer que comme 'student' (pas d'auto-promotion).
+      allow create: if isSignedIn()
+        && uid() == userId
+        && request.resource.data.role == 'student'
+        && request.resource.data.isDisabled == false;
 
       // Mise à jour de son propre profil (champs non-sensibles uniquement)
       allow update: if isSignedIn() && uid() == userId && onlyAllowedUserFields();
 
       // Admin peut créer, modifier et supprimer n'importe quel compte
       allow create, update, delete: if isAdmin();
+
+      // ── Sous-collection privée : token FCM ──────────────────────
+      // Lisible/modifiable uniquement par l'owner.
+      // Le serveur (Admin SDK) lit depuis cette sous-collection sans passer par ces règles.
+      match /private/{doc} {
+        allow read, write: if isSignedIn() && uid() == userId;
+      }
     }
 
 
@@ -133,12 +145,13 @@ service cloud.firestore {
         allow read: if isSignedIn()
           && uid() in convParticipants();
 
-        // Envoi d'un message : participant + senderId = uid + contenu non vide
+        // Envoi d'un message : participant + senderId = uid + contenu non vide (max 2000 chars)
         allow create: if isSignedIn()
           && uid() in convParticipants()
           && request.resource.data.senderId == uid()
           && request.resource.data.content is string
-          && request.resource.data.content.size() > 0;
+          && request.resource.data.content.size() > 0
+          && request.resource.data.content.size() <= 2000;
 
         // Modification : l'auteur peut éditer content/edited dans les 5 min
         // Les participants peuvent mettre à jour isRead
@@ -149,4 +162,18 @@ service cloud.firestore {
             (
               resource.data.senderId == uid()
               && request.resource.data.diff(resource.data)
-     
+                  .affectedKeys().hasOnly(['content', 'edited'])
+            )
+            ||
+            // Marquage comme lu par n'importe quel participant
+            request.resource.data.diff(resource.data)
+                .affectedKeys().hasOnly(['isRead'])
+          );
+
+        // Suppression : admin uniquement
+        allow delete: if isAdmin();
+      }
+    }
+
+  }
+}

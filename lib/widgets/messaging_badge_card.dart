@@ -22,6 +22,7 @@ class _MessagingBadgeCardState extends State<MessagingBadgeCard> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final Map<String, DateTime> visits = {};
+    // Même préfixe et même format que MessagingScreen._markRead()
     for (final key in prefs.getKeys().where((k) => k.startsWith('chat_visit_'))) {
       final ms = prefs.getInt(key);
       if (ms != null) {
@@ -48,7 +49,7 @@ class _MessagingBadgeCardState extends State<MessagingBadgeCard> {
           if (lastSenderId == widget.userId) continue; // c'est moi qui ai envoyé en dernier
           
           // Vérifier si la conversation a des messages non lus
-          final rawCount = data['msgUnread_' + widget.userId];
+          final rawCount = data['msgUnread_${widget.userId}'];
           final msgCount = (rawCount as num?)?.toInt() ?? 0;
           if (msgCount > 0) {
             unreadCount++; // +1 conversation, pas +msgCount
