@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "69338856224",
+    "project_id": "hec-connect",
+    "storage_bucket": "hec-connect.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:69338856224:android:9ad0bb6f8ccf330b3db545",
+        "android_client_info": {
+          "package_name": "com.hecabidjan.hec_connect"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "69338856224-2ogt8pcmplh4dqjvm52lfeo6i3vjul18.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwYYI2XESxcfufGzmlOPbOpbU1nwuEEFw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "69338856224-2ogt8pcmplh4dqjvm52lfeo6i3vjul18.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "69338856224-9acin7o6rpt11u6g9v8urdo6ofskr642.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.hecabidjan.hecConnect"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

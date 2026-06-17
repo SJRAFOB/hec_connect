@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ════════════════════════════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════════════════════════════
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // Lit le rôle de l'utilisateur connecté depuis Firestore
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(uid())).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userRole() == 'admin';
+    }
+
+    function isAdminOrStaff() {
+      return isSignedIn() && userRole() in ['admin', 'staff'];
+    }
+
+    // Vérifie que les champs modifiés n'incluent pas les champs protégés
+    function onlyAllowedUserFields() {
+      return !request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(['role', 'isDisabled', 'matricule', 'email', 'createdAt']);
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    // COLLECTION : users
+    // ════════════════════════════════════════════════════════════
+    match /users/{userId} {
+
+      // Tout utilisateur connecté peut lire les profils
+      allow read: if isSignedIn();
+
+      // Inscription : l'utilisateur crée son propre document
+      allow create: if isSignedIn() && uid() == userId;
+
+      // Mise à jour de son propre profil (champs non-sensibles uniquement)
+      allow update: if isSignedIn() && uid() == userId && onlyAllowedUserFields();
+
+      // Admin peut créer, modifier et supprimer n'importe quel compte
+      allow create, update, delete: if isAdmin();
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    // COLLECTION : announcements
+    // ════════════════════════════════════════════════════════════
+    match /announcements/{announcementId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isAdminOrStaff()
+        && request.resource.data.authorId == uid();
+
+      allow update: if isSignedIn()
+        && (resource.data.authorId == uid() || isAdmin())
+        && request.resource.data.authorId == resource.data.authorId;
+
+      allow delete: if isAdmin();
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    // COLLECTION : schedules
+    // ════════════════════════════════════════════════════════════
+    match /schedules/{scheduleId} {
+
+      allow read: if isSignedIn();
+
+      // Admin : tous les droits ; enseignant : créer et modifier ses propres cours
+      allow create: if isAdmin()
+        || (isSignedIn() && userRole() == 'teacher'
+            && request.resource.data.professeurId == uid());
+
+      allow update: if isAdmin()
+        || (isSignedIn() && userRole() == 'teacher'
+            && resource.data.professeurId == uid());
+
+      allow delete: if isAdmin();
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    // COLLECTION : conversations
+    // ════════════════════════════════════════════════════════════
+    match /conversations/{convId} {
+
+      // Lecture : participant ou admin
+      // Utilise 'get()' pour éviter une erreur si participants est absent
+      allow read: if isSignedIn()
+        && (isAdmin() || (
+          resource.data.participants != null
+          && uid() in resource.data.participants
+        ));
+
+      // Création : l'utilisateur doit s'inclure parmi exactement 2 participants
+      allow create: if isSignedIn()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && uid() in request.resource.data.participants;
+
+      // Mise à jour : participant existant, sans modifier les participants
+      allow update: if isSignedIn()
+        && resource.data.participants != null
+        && uid() in resource.data.participants
+        && request.resource.data.participants == resource.data.participants;
+
+      // Suppression : admin uniquement
+      allow delete: if isAdmin();
+
+
+      // ── Sous-collection : messages ──────────────────────────────
+      match /messages/{messageId} {
+
+        function convParticipants() {
+          return get(/databases/$(database)/documents/conversations/$(convId))
+              .data.participants;
+        }
+
+        // Lecture : participants uniquement
+        allow read: if isSignedIn()
+          && uid() in convParticipants();
+
+        // Envoi d'un message : participant + senderId = uid + contenu non vide
+        allow create: if isSignedIn()
+          && uid() in convParticipants()
+          && request.resource.data.senderId == uid()
+          && request.resource.data.content is string
+          && request.resource.data.content.size() > 0;
+
+        // Modification : l'auteur peut éditer content/edited dans les 5 min
+        // Les participants peuvent mettre à jour isRead
+        allow update: if isSignedIn()
+          && uid() in convParticipants()
+          && (
+            // Édition du contenu par l'auteur (content + edited uniquement)
+            (
+              resource.data.senderId == uid()
+              && request.resource.data.diff(resource.data)
+     
