@@ -1,11 +1,15 @@
 // lib/services/auth_service.dart
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../utils/constants.dart';
 import 'notification_service.dart';
 import 'presence_service.dart';
+
+const _kServerUrl = 'https://hec-notify-server.onrender.com';
 
 class AuthService extends ChangeNotifier with WidgetsBindingObserver {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -157,8 +161,24 @@ class AuthService extends ChangeNotifier with WidgetsBindingObserver {
         password: password,
       );
 
+      final uid = credential.user!.uid;
+      final idToken = await credential.user!.getIdToken();
+
+      // Écriture via serveur (Admin SDK bypass les règles Firestore)
+      final serverError = await _createProfileOnServer(
+        idToken: idToken!,
+        uid: uid,
+        nom: nom.trim(),
+        prenom: prenom.trim(),
+        email: email.trim(),
+        role: 'teacher',
+        poste: 'Professeur',
+        matieres: matieres,
+      );
+      if (serverError != null) throw Exception(serverError);
+
       final newUser = AppUser(
-        uid: credential.user!.uid,
+        uid: uid,
         nom: nom.trim(),
         prenom: prenom.trim(),
         email: email.trim(),
@@ -168,13 +188,8 @@ class AuthService extends ChangeNotifier with WidgetsBindingObserver {
         createdAt: DateTime.now(),
       );
 
-      await _firestore
-          .collection(AppConstants.collectionUsers)
-          .doc(credential.user!.uid)
-          .set(newUser.toMap());
-
       _currentUser = newUser;
-      await PresenceService.setOnline(credential.user!.uid);
+      await PresenceService.setOnline(uid);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -208,27 +223,36 @@ class AuthService extends ChangeNotifier with WidgetsBindingObserver {
         password: password,
       );
 
+      final uid = credential.user!.uid;
+      final idToken = await credential.user!.getIdToken();
       final isStaff = AppConstants.postesStaff.contains(poste);
-      final role = isStaff ? UserRole.staff : UserRole.admin;
+      final roleStr = isStaff ? 'staff' : 'admin';
+
+      // Écriture via serveur (Admin SDK bypass les règles Firestore)
+      final serverError = await _createProfileOnServer(
+        idToken: idToken!,
+        uid: uid,
+        nom: nom.trim(),
+        prenom: prenom.trim(),
+        email: email.trim(),
+        role: roleStr,
+        poste: poste,
+      );
+      if (serverError != null) throw Exception(serverError);
 
       final newUser = AppUser(
-        uid: credential.user!.uid,
+        uid: uid,
         nom: nom.trim(),
         prenom: prenom.trim(),
         email: email.trim(),
         matricule: '',
-        role: role,
+        role: isStaff ? UserRole.staff : UserRole.admin,
         poste: poste,
         createdAt: DateTime.now(),
       );
 
-      await _firestore
-          .collection(AppConstants.collectionUsers)
-          .doc(credential.user!.uid)
-          .set(newUser.toMap());
-
       _currentUser = newUser;
-      await PresenceService.setOnline(credential.user!.uid);
+      await PresenceService.setOnline(uid);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -242,6 +266,43 @@ class AuthService extends ChangeNotifier with WidgetsBindingObserver {
       _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Crée le profil utilisateur via le serveur Render (Admin SDK).
+  /// Retourne null si succès, un message d'erreur sinon.
+  Future<String?> _createProfileOnServer({
+    required String idToken,
+    required String uid,
+    required String nom,
+    required String prenom,
+    required String email,
+    required String role,
+    required String poste,
+    List<String> matieres = const [],
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_kServerUrl/createUserProfile'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'idToken': idToken,
+              'nom': nom,
+              'prenom': prenom,
+              'email': email,
+              'role': role,
+              'poste': poste,
+              if (matieres.isNotEmpty) 'matieres': matieres,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) return null;
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['error']?.toString() ?? 'Erreur serveur';
+    } catch (e) {
+      return 'Impossible de joindre le serveur : $e';
     }
   }
 
@@ -309,61 +370,4 @@ class AuthService extends ChangeNotifier with WidgetsBindingObserver {
     NotificationService().stopInAppListener();
     try {
       await NotificationService().deleteToken();
-    } catch (e) {
-      debugPrint('Erreur suppression token: $e');
-    }
-    if (_firebaseUser != null) {
-      await PresenceService.setOffline(_firebaseUser!.uid);
-    }
-    await _auth.signOut();
-    _currentUser = null;
-    notifyListeners();
-  }
-
-  Future<bool> resetPassword(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
-      return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _mapAuthError(e.code);
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> updateProfile(AppUser updated) async {
-    try {
-      await _firestore
-          .collection(AppConstants.collectionUsers)
-          .doc(updated.uid)
-          .update(updated.toMap());
-      _currentUser = updated;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _errorMessage = 'Erreur lors de la mise à jour.';
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Met à jour _currentUser en mémoire sans toucher Firestore.
-  /// Utile quand Firestore a déjà été mis à jour séparément.
-  void updateCurrentUserInMemory(AppUser updated) {
-    _currentUser = updated;
-    notifyListeners();
-  }
-
-  String _mapAuthError(String code) {
-    switch (code) {
-      case 'user-not-found':
-        return 'Aucun compte trouvé avec cet email.';
-      case 'wrong-password':
-        return 'Mot de passe incorrect.';
-      case 'invalid-credential':
-        return 'Email ou mot de passe incorrect.';
-      case 'email-already-in-use':
-        return 'Cet email est déjà utilisé.';
-      case 'weak-password':
-        return 'Mot de passe trop faible (min. 6 caractères).';
-      
+    } catch (e

@@ -344,4 +344,19 @@ class _AdminRegisterScreenState extends State<AdminRegisterScreen> {
                         style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                     GestureDetector(
                       onTap: () => Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const Login
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      ),
+                      child: const Text('Se connecter',
+                          style: TextStyle(color: AppColors.red, fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
