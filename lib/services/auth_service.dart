@@ -370,4 +370,71 @@ class AuthService extends ChangeNotifier with WidgetsBindingObserver {
     NotificationService().stopInAppListener();
     try {
       await NotificationService().deleteToken();
-    } catch (e
+    } catch (e) {
+      debugPrint('Erreur suppression token: $e');
+    }
+    if (_firebaseUser != null) {
+      await PresenceService.setOffline(_firebaseUser!.uid);
+    }
+    await _auth.signOut();
+    _currentUser = null;
+    notifyListeners();
+  }
+
+  Future<bool> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _errorMessage = _mapAuthError(e.code);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateProfile(AppUser updated) async {
+    try {
+      await _firestore
+          .collection(AppConstants.collectionUsers)
+          .doc(updated.uid)
+          .update(updated.toMap());
+      _currentUser = updated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Erreur lors de la mise à jour.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Met à jour _currentUser en mémoire sans toucher Firestore.
+  /// Utile quand Firestore a déjà été mis à jour séparément.
+  void updateCurrentUserInMemory(AppUser updated) {
+    _currentUser = updated;
+    notifyListeners();
+  }
+
+  String _mapAuthError(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'Aucun compte trouvé avec cet email.';
+      case 'wrong-password':
+        return 'Mot de passe incorrect.';
+      case 'invalid-credential':
+        return 'Email ou mot de passe incorrect.';
+      case 'email-already-in-use':
+        return 'Cet email est déjà utilisé.';
+      case 'weak-password':
+        return 'Mot de passe trop faible (min. 6 caractères).';
+      case 'invalid-email':
+        return 'Adresse email invalide.';
+      case 'too-many-requests':
+        return 'Trop de tentatives. Réessayez plus tard.';
+      case 'network-request-failed':
+        return 'Erreur de connexion Internet.';
+      default:
+        return 'Erreur d\'authentification.';
+    }
+  }
+}
