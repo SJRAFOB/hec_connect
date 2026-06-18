@@ -147,11 +147,22 @@ class NotificationService {
   }
 
   // ── Supprimer le token à la déconnexion ─────────────
-  // Le token FCM est volontairement conservé dans Firestore après déconnexion
-  // pour que le serveur puisse envoyer des notifications même hors connexion.
-  // FCM invalide automatiquement les tokens expirés côté serveur.
+  // On supprime le token FCM du compte qui se déconnecte pour éviter
+  // qu'un autre utilisateur sur le même appareil reçoive ses notifications.
   Future<void> deleteToken() async {
-    // Ne rien faire — token conservé pour les notifications background
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('private')
+          .doc('tokens')
+          .set({'fcmToken': FieldValue.delete()}, SetOptions(merge: true));
+      debugPrint('Token FCM supprime (deconnexion)');
+    } catch (e) {
+      debugPrint('Erreur suppression token FCM: $e');
+    }
   }
 
   // ── Listener in-app : notifications sans Cloud Functions ──
@@ -332,4 +343,16 @@ class NotificationService {
   String _cleanTopic(String topic) {
     return topic
         .toLowerCase()
-       
+        .replaceAll(' ', '_')
+        .replaceAll("'", '')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ô', 'o')
+        .replaceAll('î', 'i')
+        .replaceAll('û', 'u')
+        .replaceAll('ç', 'c');
+  }
+}
